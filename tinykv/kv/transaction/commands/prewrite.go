@@ -70,18 +70,43 @@ func (p *Prewrite) prewriteMutation(txn *mvcc.MvccTxn, mut *kvrpcpb.Mutation) (*
 	// Hint: Check the interafaces provided by `mvcc.MvccTxn`. The error type `kvrpcpb.WriteConflict` is used
 	//		 denote to write conflict error, try to set error information properly in the `kvrpcpb.KeyError`
 	//		 response.
-	panic("prewriteMutation is not implemented yet")
+	// 设置变量
+	keyerror := new(kvrpcpb.KeyError)
+	_, commit_ts, err := txn.MostRecentWrite(key)
+	if err != nil {
+		// 如果有内部错，直接返回错误
+		return nil, err
+	}
+	DPrintf("committs:%d and txn.StartTS:%d", commit_ts, txn.StartTS)
+	if commit_ts >= txn.StartTS {
+		// 由于没有key返回最小committs 0,则不用判断是否有key对应
+		keyerror.Conflict = &kvrpcpb.WriteConflict{StartTs: txn.StartTS, ConflictTs: commit_ts, Key: key, Primary: p.request.PrimaryLock}
+		return keyerror, nil
+	}
 
 	// YOUR CODE HERE (lab1).
 	// Check if key is locked. Report key is locked error if lock does exist, note the key could be locked
 	// by this transaction already and the current prewrite request is stale.
-	panic("check lock in prewrite is not implemented yet")
+	// 检查写冲突
+	lock, err := txn.GetLock(key)
+	if err != nil {
+		return nil, err
+	}
+	if lock != nil && lock.Ts != txn.StartTS {
+		keyerror.Locked = lock.Info(key)
+		return keyerror, nil
+	}
 
 	// YOUR CODE HERE (lab1).
 	// Write a lock and value.
 	// Hint: Check the interfaces provided by `mvccTxn.Txn`.
-	panic("lock record generation is not implemented yet")
-
+	// 写lock
+	// 如果当前是primary
+	// 写锁
+	lock_txn := &mvcc.Lock{Primary: p.request.PrimaryLock, Ts: p.request.GetStartVersion(), Ttl: p.request.GetLockTtl(), Kind: mvcc.WriteKindFromProto(mut.Op)}
+	txn.PutLock(key, lock_txn)
+	// 写data
+	txn.PutValue(key, mut.Value)
 	return nil, nil
 }
 
@@ -91,4 +116,8 @@ func (p *Prewrite) WillWrite() [][]byte {
 		result = append(result, m.Key)
 	}
 	return result
+}
+
+func (p *Prewrite) Context() *kvrpcpb.Context {
+	return nil
 }
