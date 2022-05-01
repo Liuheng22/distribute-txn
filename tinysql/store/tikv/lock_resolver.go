@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
+	pb "github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
 	pd "github.com/pingcap-incubator/tinykv/scheduler/client"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/store/tikv/tikvrpc"
@@ -295,11 +296,12 @@ func (lr *LockResolver) getTxnStatus(bo *Backoffer, txnID uint64, primary []byte
 	// 2.2 Txn Rollbacked -- rollback itself, rollback by others, GC tomb etc.
 	// 2.3 No lock -- concurrence prewrite.
 
-	var status TxnStatus
+	var status TxnStatus = TxnStatus{}
 	var req *tikvrpc.Request
 	// build the request
 	// YOUR CODE HERE (lab2).
-	panic("YOUR CODE HERE")
+	request := &pb.CheckTxnStatusRequest{PrimaryKey: primary, LockTs: txnID, CurrentTs: currentTS}
+	req = tikvrpc.NewRequest(tikvrpc.CmdCheckTxnStatus, request, pb.Context{})
 	for {
 		loc, err := lr.store.GetRegionCache().LocateKey(bo, primary)
 		if err != nil {
@@ -327,7 +329,9 @@ func (lr *LockResolver) getTxnStatus(bo *Backoffer, txnID uint64, primary []byte
 		logutil.BgLogger().Debug("cmdResp", zap.Bool("nil", cmdResp == nil))
 		// Assign status with response
 		// YOUR CODE HERE (lab2).
-		panic("YOUR CODE HERE")
+		status.ttl = cmdResp.LockTtl
+		status.commitTS = cmdResp.CommitVersion
+		status.action = cmdResp.Action
 		return status, nil
 	}
 }
@@ -350,8 +354,8 @@ func (lr *LockResolver) resolveLock(bo *Backoffer, l *Lock, status TxnStatus, cl
 
 		// build the request
 		// YOUR CODE HERE (lab2).
-		panic("YOUR CODE HERE")
-
+		request := &pb.ResolveLockRequest{StartVersion: l.TxnID, CommitVersion: status.commitTS}
+		req = tikvrpc.NewRequest(tikvrpc.CmdResolveLock, request, pb.Context{})
 		resp, err := lr.store.SendReq(bo, req, loc.Region, readTimeoutShort)
 		if err != nil {
 			return errors.Trace(err)

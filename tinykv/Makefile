@@ -121,3 +121,5 @@ lab1P3:
 
 lab1P4:
 	$(GOTEST) ./kv/transaction/... -run 4
+
+lab1: lab1P0 lab1P1 lab1P2 lab1P3 lab1P4
