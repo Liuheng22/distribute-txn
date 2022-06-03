@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	pb "github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
 	"github.com/pingcap/errors"
@@ -148,7 +149,15 @@ func (s *tikvSnapshot) get(bo *Backoffer, k kv.Key) ([]byte, error) {
 			//   1. The transaction is during commit, wait for a while and retry.
 			//   2. The transaction is dead with some locks left, resolve it.
 			// YOUR CODE HERE (lab2).
-			panic("YOUR CODE HERE")
+			lock, err := extractLockFromKeyErr(keyErr)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			msBeforeExpired, _, err := s.store.lockResolver.ResolveLocks(bo, lock.TxnID+lock.TTL+1, []*Lock{lock})
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			time.Sleep(time.Duration(msBeforeExpired) * time.Millisecond)
 			continue
 		}
 		return val, nil
